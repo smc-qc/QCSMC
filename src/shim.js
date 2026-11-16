@@ -12,15 +12,16 @@ window.QC_LOGOUT=async()=>{try{await sb.auth.signOut()}catch(e){}try{localStorag
 let session=null,resolveReady;const ready=new Promise(r=>resolveReady=r);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+const PIN=(id,ac)=>'<input id="'+id+'" class="g-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="'+ac+'" placeholder="••••••">';
 function loginForm(email,sent,msg,mode){
   mode=mode||'pw';
-  const tabs='<div class="g-tabs"><button data-m="pw" class="'+(mode==='pw'?'on':'')+'">เข้าสู่ระบบ</button><button data-m="new" class="'+(mode==='new'?'on':'')+'">สร้างรหัสผ่าน</button></div>';
+  const tabs='<div class="g-tabs"><button data-m="pw" class="'+(mode==='pw'?'on':'')+'">เข้าสู่ระบบ</button><button data-m="new" class="'+(mode==='new'?'on':'')+'">ตั้ง PIN ครั้งแรก</button></div>';
   let body='<label class="g-l" for="gEmail">อีเมล</label><input id="gEmail" type="email" inputmode="email" autocomplete="email" value="'+esc(email||'')+'" placeholder="name@example.com">';
-  if(mode==='pw')body+='<label class="g-l" for="gPw">รหัสผ่าน</label><input id="gPw" type="password" autocomplete="current-password"><button class="g-btn" id="gGo">เข้าสู่ระบบ</button><button class="g-link" id="gLinkMode">ลืมรหัสผ่าน / เข้าด้วยลิงก์ทางอีเมล</button>';
-  else if(mode==='new')body+='<label class="g-l" for="gPw">ตั้งรหัสผ่าน (อย่างน้อย 6 ตัว)</label><input id="gPw" type="password" autocomplete="new-password"><label class="g-l" for="gPw2">พิมพ์รหัสผ่านอีกครั้ง</label><input id="gPw2" type="password" autocomplete="new-password"><button class="g-btn" id="gGo">สร้างรหัสผ่านและเข้าใช้</button>';
+  if(mode==='pw')body+='<label class="g-l" for="gPw">PIN 6 หลัก</label>'+PIN('gPw','current-password')+'<button class="g-btn" id="gGo">เข้าสู่ระบบ</button><button class="g-link" id="gLinkMode">ลืม PIN / เข้าด้วยลิงก์ทางอีเมล</button>';
+  else if(mode==='new')body+='<label class="g-l" for="gPw">ตั้ง PIN 6 หลัก</label>'+PIN('gPw','new-password')+'<label class="g-l" for="gPw2">ใส่ PIN อีกครั้ง</label>'+PIN('gPw2','new-password')+'<button class="g-btn" id="gGo">ตั้ง PIN และเข้าใช้</button>';
   else body+='<button class="g-btn" id="gSend">'+(sent?'ส่งอีกครั้ง':'ส่งลิงก์เข้าใช้ไปที่อีเมล')+'</button>'+
     (sent?'<p class="g-msg">ส่งอีเมลแล้ว เปิดอีเมลแล้วกดลิงก์ หรือกรอกรหัสจากอีเมลด้านล่าง</p><label class="g-l" for="gCode">รหัสจากอีเมล</label><input id="gCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456"><button class="g-btn" id="gVerify">เข้าใช้</button>':'')+
-    '<button class="g-link" id="gPwMode">กลับไปใช้รหัสผ่าน</button>';
+    '<button class="g-link" id="gPwMode">กลับไปเข้าด้วย PIN</button>';
   showGate((mode==='link'?'':tabs)+body+(msg?'<p class="g-err">'+esc(msg)+'</p>':'')+'<p class="g-foot">ใช้ได้เฉพาะอีเมลที่ผู้ตรวจเพิ่มสิทธิ์ไว้แล้ว</p>');
   const em=$('#gEmail'),E=()=>em.value.trim(),okE=e=>/^\S+@\S+\.\S+$/.test(e);
   const remember=e=>{try{localStorage.setItem('qc.lastEmail',e)}catch(_){}};
@@ -28,15 +29,16 @@ function loginForm(email,sent,msg,mode){
   const lm=$('#gLinkMode');if(lm)lm.onclick=()=>loginForm(E(),false,'','link');
   const pm=$('#gPwMode');if(pm)pm.onclick=()=>loginForm(E(),false,'','pw');
   const go=$('#gGo'),pw=$('#gPw');
-  if(pw)pw.onkeydown=e=>{if(e.key==='Enter'&&mode==='pw')go.click()};
+  if(pw)pw.oninput=()=>{pw.value=pw.value.replace(/\D/g,'').slice(0,6);if(mode==='pw'&&pw.value.length===6)go.click()};
+  {const p2=$('#gPw2');if(p2)p2.oninput=()=>{p2.value=p2.value.replace(/\D/g,'').slice(0,6)}}
   if(go)go.onclick=async()=>{const e=E(),p=pw.value;if(!okE(e))return loginForm(e,false,'กรอกอีเมลให้ถูกต้อง',mode);
-    if(p.length<6)return loginForm(e,false,'รหัสผ่านต้องมีอย่างน้อย 6 ตัว',mode);
-    if(mode==='new'&&p!==$('#gPw2').value)return loginForm(e,false,'รหัสผ่านสองช่องไม่ตรงกัน',mode);
+    if(!/^\d{6}$/.test(p))return loginForm(e,false,'PIN ต้องเป็นตัวเลข 6 หลัก',mode);
+    if(mode==='new'&&p!==$('#gPw2').value)return loginForm(e,false,'PIN สองช่องไม่ตรงกัน',mode);
     go.disabled=true;go.textContent='กำลังตรวจ…';remember(e);
     if(mode==='pw'){const {error}=await sb.auth.signInWithPassword({email:e,password:p});
-      if(error)loginForm(e,false,/confirm/i.test(error.message)?'อีเมลนี้ยังไม่ได้ยืนยัน เปิดอีเมลแล้วกดลิงก์ยืนยันก่อน':'อีเมลหรือรหัสผ่านไม่ถูกต้อง','pw')}
+      if(error)loginForm(e,false,/confirm/i.test(error.message)?'อีเมลนี้ยังไม่ได้ยืนยัน เปิดอีเมลแล้วกดลิงก์ยืนยันก่อน':'อีเมลหรือ PIN ไม่ถูกต้อง','pw')}
     else{const {data,error}=await sb.auth.signUp({email:e,password:p,options:{emailRedirectTo:location.origin+location.pathname}});
-      if(error)loginForm(e,false,/registered|exists/i.test(error.message)?'อีเมลนี้มีรหัสผ่านแล้ว ไปที่ "เข้าสู่ระบบ" หรือกด "ลืมรหัสผ่าน"':('สร้างไม่สำเร็จ: '+error.message),'new');
+      if(error)loginForm(e,false,/registered|exists/i.test(error.message)?'อีเมลนี้ตั้ง PIN ไว้แล้ว ไปที่ "เข้าสู่ระบบ" หรือกด "ลืม PIN"':('สร้างไม่สำเร็จ: '+error.message),'new');
       else if(!data.session)loginForm(e,false,'สร้างแล้ว ระบบส่งอีเมลยืนยันไปให้ กดลิงก์ในอีเมลครั้งเดียว แล้วกลับมาเข้าสู่ระบบ','pw')}};
   const sd=$('#gSend');if(sd)sd.onclick=async()=>{const e=E();if(!okE(e))return loginForm(e,sent,'กรอกอีเมลให้ถูกต้อง','link');
     sd.disabled=true;sd.textContent='กำลังส่ง…';remember(e);
