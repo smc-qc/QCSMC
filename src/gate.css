@@ -17,3 +17,13 @@
 .g-tabs button.on{background:#fff;color:#1f4e78;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .g-link{display:block;margin:14px auto 0;font:inherit;font-size:14px;background:none;border:0;color:#2a6fb0;text-decoration:underline}
 .g-card input.g-pin{font-size:26px;letter-spacing:.5em;text-align:center}
+.g-small{font-size:13px;color:#5b6876}
+.g-mh{display:flex;justify-content:space-between;align-items:center;font-size:18px;margin-bottom:8px}
+.g-x{margin:0}
+.g-list{border-top:1px solid #e3e7ec;margin-bottom:14px}
+.g-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #e3e7ec;gap:10px}
+.g-n{font-weight:600}.g-s{color:#5b6876;font-size:13px}
+.g-del{font:inherit;font-size:14px;border:1px solid #e3b4ae;background:#fff;color:#b3261e;border-radius:8px;padding:6px 12px}
+.g-add{background:#f6f8fa;border-radius:10px;padding:12px}
+.g-card select{width:100%;font:inherit;font-size:16px;padding:11px;border:1px solid #c3cad2;border-radius:10px;background:#fff}
+#gate .g-card{max-width:420px}
