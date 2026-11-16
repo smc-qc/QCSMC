@@ -1,0 +1,14 @@
+#gate{position:fixed;inset:0;z-index:10000;background:var(--bg,#eef1f4);display:flex;align-items:flex-start;justify-content:center;padding:12vh 16px 24px;overflow:auto}
+#gate[hidden]{display:none}
+.g-card{width:100%;max-width:380px;background:#fff;border:1px solid #d5dbe2;border-radius:14px;padding:24px 20px;box-shadow:0 6px 24px rgba(20,40,70,.08)}
+.g-logo{font-weight:700;font-size:26px;color:#1f4e78}
+.g-sub{color:#5b6876;margin-bottom:18px}
+.g-l{display:block;font-weight:600;margin:12px 0 6px}
+.g-card input{width:100%;box-sizing:border-box;font:inherit;font-size:17px;padding:12px;border:1px solid #c3cad2;border-radius:10px}
+.g-btn{display:block;width:100%;margin-top:12px;font:inherit;font-weight:600;font-size:16px;padding:12px;border:0;border-radius:10px;background:#1f4e78;color:#fff}
+.g-btn:disabled{opacity:.6}
+.g-sec{background:#e6ebf0;color:#16212c}
+.g-msg{color:#16212c;margin:14px 0 0;line-height:1.55}
+.g-err{color:#b3261e;margin:12px 0 0}
+.g-foot{color:#5b6876;font-size:13px;margin:16px 0 0}
+.home-h .who{font-size:13px;margin-top:4px}

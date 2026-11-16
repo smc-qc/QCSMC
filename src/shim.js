@@ -1,0 +1,89 @@
+/* QC SMC website adapter: gives the app the same db / assets / downloads / user interface it uses on claude.ai, backed by Supabase. */
+(function(){
+'use strict';
+const CFG=window.QC_CONFIG||{};
+const $=s=>document.querySelector(s);
+const gate=$('#gate');
+function showGate(html){gate.innerHTML='<div class="g-card"><div class="g-logo">QC SMC</div><div class="g-sub">ระบบตรวจสอบคุณภาพงาน</div>'+html+'</div>';gate.hidden=false}
+if(!CFG.url||!CFG.key||/__/.test(CFG.url)){showGate('<p class="g-msg">ยังไม่ได้ตั้งค่าการเชื่อมต่อฐานข้อมูล (Supabase URL / key)</p>');window.claude={use:()=>new Promise(()=>{})};return}
+const sb=window.supabase.createClient(CFG.url,CFG.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'implicit'}});
+window.BLOB_BASE=CFG.url.replace(/\/$/,'')+'/storage/v1/object/public/photos/';
+window.QC_LOGOUT=async()=>{try{await sb.auth.signOut()}catch(e){}try{localStorage.removeItem('qc.sb.cache')}catch(e){}location.reload()};
+let session=null,resolveReady;const ready=new Promise(r=>resolveReady=r);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function loginForm(email,sent,msg){
+  showGate(
+    '<label class="g-l" for="gEmail">อีเมล</label><input id="gEmail" type="email" inputmode="email" autocomplete="email" value="'+esc(email||'')+'" placeholder="name@example.com">'+
+    '<button class="g-btn" id="gSend">'+(sent?'ส่งอีกครั้ง':'ส่งลิงก์เข้าใช้ไปที่อีเมล')+'</button>'+
+    (sent?'<p class="g-msg">ส่งอีเมลแล้ว เปิดอีเมลแล้วกดลิงก์ หรือกรอกรหัส 6 หลักจากอีเมลด้านล่าง</p><label class="g-l" for="gCode">รหัสจากอีเมล</label><input id="gCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456"><button class="g-btn" id="gVerify">เข้าใช้</button>':'')+
+    (msg?'<p class="g-err">'+esc(msg)+'</p>':'')+'<p class="g-foot">ใช้ได้เฉพาะอีเมลที่ผู้ตรวจเพิ่มสิทธิ์ไว้แล้ว</p>');
+  const em=$('#gEmail');
+  $('#gSend').onclick=async()=>{const e=em.value.trim();if(!/^\S+@\S+\.\S+$/.test(e)){loginForm(e,sent,'กรอกอีเมลให้ถูกต้อง');return}
+    $('#gSend').disabled=true;$('#gSend').textContent='กำลังส่ง…';
+    const {error}=await sb.auth.signInWithOtp({email:e,options:{emailRedirectTo:location.origin+location.pathname,shouldCreateUser:true}});
+    try{localStorage.setItem('qc.lastEmail',e)}catch(_){}
+    loginForm(e,!error,error?('ส่งไม่สำเร็จ: '+(error.message||error.status)):'')};
+  const vb=$('#gVerify');if(vb)vb.onclick=async()=>{const t=$('#gCode').value.replace(/\s/g,'');if(!t)return;vb.disabled=true;vb.textContent='กำลังตรวจ…';
+    const {error}=await sb.auth.verifyOtp({email:em.value.trim(),token:t,type:'email'});
+    if(error)loginForm(em.value.trim(),true,'รหัสไม่ถูกต้องหรือหมดอายุ ลองส่งใหม่')};
+}
+async function admit(s){
+  session=s;
+  const email=(s.user.email||'').toLowerCase();
+  const {data,error}=await sb.from('members').select('email,name,role').limit(1).maybeSingle();
+  if(error&&!data){ // offline or transient: let the app run from cache
+    if(!navigator.onLine){window.QC_USER=email;gate.hidden=true;resolveReady();return}
+    showGate('<p class="g-err">ตรวจสอบสิทธิ์ไม่สำเร็จ ('+esc(error.message)+')</p><button class="g-btn" onclick="location.reload()">ลองใหม่</button>');return}
+  if(!data){showGate('<p class="g-msg">อีเมล <b>'+esc(email)+'</b> ยังไม่ได้รับสิทธิ์เข้าใช้ แจ้งผู้ตรวจให้เพิ่มอีเมลนี้ แล้วกดลองใหม่</p><button class="g-btn" onclick="location.reload()">ลองใหม่</button><button class="g-btn g-sec" id="gOut">ใช้อีเมลอื่น</button>');$('#gOut').onclick=window.QC_LOGOUT;return}
+  window.QC_USER=(data.name?data.name+' · ':'')+email;window.QC_ROLE=data.role||'tech';
+  gate.hidden=true;resolveReady();
+}
+sb.auth.onAuthStateChange((ev,s)=>{if(ev==='SIGNED_IN'&&s&&!session)admit(s)});
+sb.auth.getSession().then(({data})=>{if(data&&data.session){if(!session)admit(data.session)}else loginForm((()=>{try{return localStorage.getItem('qc.lastEmail')}catch(e){return ''}})(),false,'')});
+
+/* ---------- db ---------- */
+const LS='qc.sb.cache';
+const genId=()=>{const a='0123456789abcdefghijklmnopqrstuvwxyz',r=crypto.getRandomValues(new Uint8Array(20));let s='';r.forEach(x=>s+=a[x%36]);return s};
+const snap=(rows,fromCache)=>({docs:rows.map(r=>({id:r.id,data:()=>r.data})),metadata:{fromCache}});
+const ls=new Set();let rt=false,tmr=null;
+const wrap=e=>{const x=new Error(e.message||'error');x.code=e.code==='42501'?'permission_denied':(e.code||'error');return x};
+async function refetch(){
+  const {data,error}=await sb.from('inspections').select('id,data').order('updated_at',{ascending:false}).limit(1000);
+  if(error){if(navigator.onLine)ls.forEach(l=>l.err&&l.err(wrap(error)));return}
+  try{localStorage.setItem(LS,JSON.stringify(data))}catch(e){}
+  ls.forEach(l=>l.cb(snap(data,false)));
+}
+const soon=()=>{clearTimeout(tmr);tmr=setTimeout(refetch,400)};
+function startRT(){
+  sb.channel('qc-inspections').on('postgres_changes',{event:'*',schema:'public',table:'inspections'},soon).subscribe();
+  setInterval(()=>{if(document.visibilityState==='visible')refetch()},60000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')soon()});
+  window.addEventListener('online',soon);
+}
+const db={
+  collection(){const q={orderBy:()=>q,limit:()=>q,doc:()=>({id:genId()}),
+    onSnapshot(cb,err){const l={cb,err};ls.add(l);
+      let c=null;try{c=JSON.parse(localStorage.getItem(LS)||'null')}catch(e){}
+      if(c&&c.length)setTimeout(()=>cb(snap(c,true)),0);
+      refetch();if(!rt){rt=true;startRT()}return()=>ls.delete(l)}};return q},
+  doc(path){const id=path.split('/').pop();return{
+    async set(body){const {error}=await sb.from('inspections').upsert({id,data:body,updated_at:body.updatedAt||Date.now(),updated_by:session&&session.user.id});if(error)throw wrap(error);soon()},
+    async delete(){const {error}=await sb.from('inspections').delete().eq('id',id);if(error)throw wrap(error);soon()}}}
+};
+/* ---------- photos ---------- */
+const hex=()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
+async function put(id,blob,type){
+  const {error}=await sb.storage.from('photos').upload(id,blob,{contentType:type||blob.type||'image/jpeg',cacheControl:'31536000',upsert:false});
+  if(error&&!/exist|duplicate/i.test(error.message||'')&&String(error.statusCode)!=='409')throw wrap(error);
+  return {id};
+}
+const assets={upload:(blob,o)=>put(hex(),blob,o&&o.type),put};
+/* ---------- downloads ---------- */
+const downloads={async save({filename,data}){
+  const b=data instanceof Blob?data:new Blob([data],{type:'text/plain;charset=utf-8'});
+  const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);}};
+const user={id:async()=>session?session.user.id:null};
+const caps={db,assets,downloads,user};
+window.claude={use:async n=>{await ready;return caps[n]||null}};
+})();
