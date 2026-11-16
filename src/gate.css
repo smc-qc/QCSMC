@@ -12,3 +12,7 @@
 .g-err{color:#b3261e;margin:12px 0 0}
 .g-foot{color:#5b6876;font-size:13px;margin:16px 0 0}
 .home-h .who{font-size:13px;margin-top:4px}
+.g-tabs{display:flex;gap:6px;background:#eef1f4;border-radius:10px;padding:4px;margin-bottom:6px}
+.g-tabs button{flex:1;font:inherit;font-weight:600;padding:9px;border:0;border-radius:8px;background:transparent;color:#5b6876}
+.g-tabs button.on{background:#fff;color:#1f4e78;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.g-link{display:block;margin:14px auto 0;font:inherit;font-size:14px;background:none;border:0;color:#2a6fb0;text-decoration:underline}

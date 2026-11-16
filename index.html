@@ -26,6 +26,10 @@
 .g-err{color:#b3261e;margin:12px 0 0}
 .g-foot{color:#5b6876;font-size:13px;margin:16px 0 0}
 .home-h .who{font-size:13px;margin-top:4px}
+.g-tabs{display:flex;gap:6px;background:#eef1f4;border-radius:10px;padding:4px;margin-bottom:6px}
+.g-tabs button{flex:1;font:inherit;font-weight:600;padding:9px;border:0;border-radius:8px;background:transparent;color:#5b6876}
+.g-tabs button.on{background:#fff;color:#1f4e78;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.g-link{display:block;margin:14px auto 0;font:inherit;font-size:14px;background:none;border:0;color:#2a6fb0;text-decoration:underline}
 
 </style>
 <style>
@@ -1327,21 +1331,39 @@ window.QC_LOGOUT=async()=>{try{await sb.auth.signOut()}catch(e){}try{localStorag
 let session=null,resolveReady;const ready=new Promise(r=>resolveReady=r);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-function loginForm(email,sent,msg){
-  showGate(
-    '<label class="g-l" for="gEmail">อีเมล</label><input id="gEmail" type="email" inputmode="email" autocomplete="email" value="'+esc(email||'')+'" placeholder="name@example.com">'+
-    '<button class="g-btn" id="gSend">'+(sent?'ส่งอีกครั้ง':'ส่งลิงก์เข้าใช้ไปที่อีเมล')+'</button>'+
-    (sent?'<p class="g-msg">ส่งอีเมลแล้ว เปิดอีเมลแล้วกดลิงก์ หรือกรอกรหัส 6 หลักจากอีเมลด้านล่าง</p><label class="g-l" for="gCode">รหัสจากอีเมล</label><input id="gCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456"><button class="g-btn" id="gVerify">เข้าใช้</button>':'')+
-    (msg?'<p class="g-err">'+esc(msg)+'</p>':'')+'<p class="g-foot">ใช้ได้เฉพาะอีเมลที่ผู้ตรวจเพิ่มสิทธิ์ไว้แล้ว</p>');
-  const em=$('#gEmail');
-  $('#gSend').onclick=async()=>{const e=em.value.trim();if(!/^\S+@\S+\.\S+$/.test(e)){loginForm(e,sent,'กรอกอีเมลให้ถูกต้อง');return}
-    $('#gSend').disabled=true;$('#gSend').textContent='กำลังส่ง…';
+function loginForm(email,sent,msg,mode){
+  mode=mode||'pw';
+  const tabs='<div class="g-tabs"><button data-m="pw" class="'+(mode==='pw'?'on':'')+'">เข้าสู่ระบบ</button><button data-m="new" class="'+(mode==='new'?'on':'')+'">สร้างรหัสผ่าน</button></div>';
+  let body='<label class="g-l" for="gEmail">อีเมล</label><input id="gEmail" type="email" inputmode="email" autocomplete="email" value="'+esc(email||'')+'" placeholder="name@example.com">';
+  if(mode==='pw')body+='<label class="g-l" for="gPw">รหัสผ่าน</label><input id="gPw" type="password" autocomplete="current-password"><button class="g-btn" id="gGo">เข้าสู่ระบบ</button><button class="g-link" id="gLinkMode">ลืมรหัสผ่าน / เข้าด้วยลิงก์ทางอีเมล</button>';
+  else if(mode==='new')body+='<label class="g-l" for="gPw">ตั้งรหัสผ่าน (อย่างน้อย 6 ตัว)</label><input id="gPw" type="password" autocomplete="new-password"><label class="g-l" for="gPw2">พิมพ์รหัสผ่านอีกครั้ง</label><input id="gPw2" type="password" autocomplete="new-password"><button class="g-btn" id="gGo">สร้างรหัสผ่านและเข้าใช้</button>';
+  else body+='<button class="g-btn" id="gSend">'+(sent?'ส่งอีกครั้ง':'ส่งลิงก์เข้าใช้ไปที่อีเมล')+'</button>'+
+    (sent?'<p class="g-msg">ส่งอีเมลแล้ว เปิดอีเมลแล้วกดลิงก์ หรือกรอกรหัสจากอีเมลด้านล่าง</p><label class="g-l" for="gCode">รหัสจากอีเมล</label><input id="gCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456"><button class="g-btn" id="gVerify">เข้าใช้</button>':'')+
+    '<button class="g-link" id="gPwMode">กลับไปใช้รหัสผ่าน</button>';
+  showGate((mode==='link'?'':tabs)+body+(msg?'<p class="g-err">'+esc(msg)+'</p>':'')+'<p class="g-foot">ใช้ได้เฉพาะอีเมลที่ผู้ตรวจเพิ่มสิทธิ์ไว้แล้ว</p>');
+  const em=$('#gEmail'),E=()=>em.value.trim(),okE=e=>/^\S+@\S+\.\S+$/.test(e);
+  const remember=e=>{try{localStorage.setItem('qc.lastEmail',e)}catch(_){}};
+  gate.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>loginForm(E(),false,'',b.dataset.m));
+  const lm=$('#gLinkMode');if(lm)lm.onclick=()=>loginForm(E(),false,'','link');
+  const pm=$('#gPwMode');if(pm)pm.onclick=()=>loginForm(E(),false,'','pw');
+  const go=$('#gGo'),pw=$('#gPw');
+  if(pw)pw.onkeydown=e=>{if(e.key==='Enter'&&mode==='pw')go.click()};
+  if(go)go.onclick=async()=>{const e=E(),p=pw.value;if(!okE(e))return loginForm(e,false,'กรอกอีเมลให้ถูกต้อง',mode);
+    if(p.length<6)return loginForm(e,false,'รหัสผ่านต้องมีอย่างน้อย 6 ตัว',mode);
+    if(mode==='new'&&p!==$('#gPw2').value)return loginForm(e,false,'รหัสผ่านสองช่องไม่ตรงกัน',mode);
+    go.disabled=true;go.textContent='กำลังตรวจ…';remember(e);
+    if(mode==='pw'){const {error}=await sb.auth.signInWithPassword({email:e,password:p});
+      if(error)loginForm(e,false,/confirm/i.test(error.message)?'อีเมลนี้ยังไม่ได้ยืนยัน เปิดอีเมลแล้วกดลิงก์ยืนยันก่อน':'อีเมลหรือรหัสผ่านไม่ถูกต้อง','pw')}
+    else{const {data,error}=await sb.auth.signUp({email:e,password:p,options:{emailRedirectTo:location.origin+location.pathname}});
+      if(error)loginForm(e,false,/registered|exists/i.test(error.message)?'อีเมลนี้มีรหัสผ่านแล้ว ไปที่ "เข้าสู่ระบบ" หรือกด "ลืมรหัสผ่าน"':('สร้างไม่สำเร็จ: '+error.message),'new');
+      else if(!data.session)loginForm(e,false,'สร้างแล้ว ระบบส่งอีเมลยืนยันไปให้ กดลิงก์ในอีเมลครั้งเดียว แล้วกลับมาเข้าสู่ระบบ','pw')}};
+  const sd=$('#gSend');if(sd)sd.onclick=async()=>{const e=E();if(!okE(e))return loginForm(e,sent,'กรอกอีเมลให้ถูกต้อง','link');
+    sd.disabled=true;sd.textContent='กำลังส่ง…';remember(e);
     const {error}=await sb.auth.signInWithOtp({email:e,options:{emailRedirectTo:location.origin+location.pathname,shouldCreateUser:true}});
-    try{localStorage.setItem('qc.lastEmail',e)}catch(_){}
-    loginForm(e,!error,error?('ส่งไม่สำเร็จ: '+(error.message||error.status)):'')};
+    loginForm(e,!error,error?('ส่งไม่สำเร็จ: '+(error.message||error.status)):'','link')};
   const vb=$('#gVerify');if(vb)vb.onclick=async()=>{const t=$('#gCode').value.replace(/\s/g,'');if(!t)return;vb.disabled=true;vb.textContent='กำลังตรวจ…';
-    const {error}=await sb.auth.verifyOtp({email:em.value.trim(),token:t,type:'email'});
-    if(error)loginForm(em.value.trim(),true,'รหัสไม่ถูกต้องหรือหมดอายุ ลองส่งใหม่')};
+    const {error}=await sb.auth.verifyOtp({email:E(),token:t,type:'email'});
+    if(error)loginForm(E(),true,'รหัสไม่ถูกต้องหรือหมดอายุ ลองส่งใหม่','link')};
 }
 async function admit(s){
   session=s;
